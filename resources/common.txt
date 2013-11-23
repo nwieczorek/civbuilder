@@ -1,0 +1,10 @@
+tileset-def tileset.txt
+tileset-file tiles_24.png
+
+tile-width 24
+tile-height 24
+
+display-width 600
+display-height 400
+
+apples 1 2 3

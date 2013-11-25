@@ -1,7 +1,7 @@
 (ns civbuilder.tileset
   (:import (java.io BufferedReader FileReader InputStreamReader)
            javax.imageio.ImageIO)
-  (:require [civ.common :as common]))
+  (:require [civbuilder.common :as common]))
 
 
 
@@ -21,8 +21,7 @@
 
 (defn get-image-tiler
   [full-image tile-def]
-  (let [tile-width (common/get-property :tile-width)
-        tile-height (common/get-property :tile-height)]
+  (let [[tile-width tile-height] (common/get-property :tile-size)]
     (fn [image-map kw]
       (let [[tile-x tile-y] (tile-def kw)
             subimg (get-subimage full-image tile-x tile-y tile-width tile-height kw )]

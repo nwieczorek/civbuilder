@@ -1,8 +1,9 @@
 (ns civbuilder.core
   (:import (javax.swing JFrame Timer)
            (java.awt.event KeyListener ActionListener))
-  (:require [civ.tileset :as tileset]
-            [civ.common :as common]))
+  (:require [civbuilder.gui :as gui]
+            [civbuilder.tileset :as tileset]
+            [civbuilder.common :as common]))
 
 (defn foo
   "I don't do a whole lot."
@@ -17,13 +18,15 @@
                (.setDefaultCloseOperation JFrame/EXIT_ON_CLOSE )
               ))
 
-  ;(.setContentPane frame p)
-  (.validate frame)
-  (.repaint frame)
-  (.setVisible frame true)
-  (let [insets (.getInsets frame)]
-      (.setSize frame (+ (.left insets) (.right insets) (common/get-property :display-width) ) 
-                      (+ (.top insets) (.bottom insets) (common/get-property :display-height ) )))
+  (let [insets (.getInsets frame)
+        pnl (gui/civ-panel)
+        [display-width display-height] (common/get-property :display-size)]
+      (.setContentPane frame pnl)
+      (.validate frame)
+      (.repaint frame)
+      (.setVisible frame true)
+      (.setSize frame (+ (.left insets) (.right insets) display-width ) 
+                      (+ (.top insets) (.bottom insets) display-height  )))
 
     )
 

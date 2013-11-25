@@ -1,6 +1,6 @@
 
 (ns civbuilder.grid
-  (:require [civ.common :as common]))
+  (:require [civbuilder.common :as common]))
 
 
 (defn make-grid-cells
@@ -20,21 +20,27 @@
    :cells  (make-grid-cells width height #(assoc initial-cell :x %1 :y %2  )) 
    })
 
+
+(defn make-world
+  [width height]
+  (make-grid width height {:terrain :plains}))
+
 (defn get-cell
   [grid x y]
     (let [cells (grid :cells)]
       ((cells y) x)))
 
 (defn update-grid
-  [grid x y update-func]
-  (let [updater (fn [ex ey]
-                  (let [ecell (get-cell grid ex ey)]
-                    (if (and (= ex x) (= ey y))
-                      (update-func ecell)
-                      ecell)))]
-    (assoc grid :cells (make-grid-cells (grid :width) (grid :height) updater))))
-
-
+  ([grid match-func update-func]
+    (let [updater (fn [ex ey]
+                    (let [ecell (get-cell grid ex ey)]
+                      (if (match-func ex ey)
+                        (update-func ecell)
+                        ecell)))]
+      (assoc grid :cells (make-grid-cells (:width grid) (:height grid) updater))))
+  ([grid x y update-func]
+    (let [match-func #(and (= x %1) (= y %2))]
+      (update-grid grid match-func update-func))))
 
 (defn valid?
   [grid x y]
@@ -56,3 +62,9 @@
                            (map #(add-coords % [x y]) orthogonal))]
     (map (fn [[ix iy]] (get-cell grid ix iy)) valid-coords)))
 
+
+(defn for-each-cell
+  [grid func]
+  (doseq [row (:cells grid)]
+    (doseq [cell row]
+      (func cell))))

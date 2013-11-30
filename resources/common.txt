@@ -1,10 +1,27 @@
-tileset-def tileset.txt
-tileset-file tiles_24.png
+tileset-def map_tileset.txt
+tileset-file map_tiles.png
 
+card-tileset-def card_tileset.txt
+card-tileset-file card_tiles.png
+card-font Caudex-Regular.ttf
+card-font-size 32
 
-world-size 10 10
+world-size 30 20
+
+map-offset 3 3
 tile-size 24 24
+card-tile-size 32 32
 
-display-size 600 400
+
+hand-offset 5 500
+
+display-size 800 600
 
 apples 1 2 3
+
+forest-seed-chance 5
+mountain-seed-chance 2
+water-seed-chance 5
+
+
+repaint-milliseconds 500

@@ -32,8 +32,11 @@
 
 (defn load-property-file
   [filename]
-  (let [load-class (.getClass (Thread/currentThread))]
-    (with-open [rdr (BufferedReader. (InputStreamReader. (.getResourceAsStream load-class (str "/" filename))))]
+  (assert (not (nil? filename)) "Property filename not defined")
+  (let [load-class (.getClass (Thread/currentThread))
+        istream (.getResourceAsStream load-class (str "/" filename))
+        _ (assert (not (nil? istream)) (str "Could not open stream for " filename)) ]
+    (with-open [rdr (BufferedReader. (InputStreamReader. istream))]
       (reduce resolve-line {} (line-seq rdr)))))
 
 (def ^:dynamic *common-properties* (atom nil))

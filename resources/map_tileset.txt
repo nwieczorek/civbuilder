@@ -1,0 +1,10 @@
+
+plains 0 0
+forest 1 0
+mountain 2 0
+water 3 0
+
+
+hover 4 0
+select 5 0 
+village 6 0

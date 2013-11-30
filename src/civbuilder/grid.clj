@@ -21,9 +21,6 @@
    })
 
 
-(defn make-world
-  [width height]
-  (make-grid width height {:terrain :plains}))
 
 (defn get-cell
   [grid x y]
@@ -31,6 +28,9 @@
       ((cells y) x)))
 
 (defn update-grid
+  "Return an updated grid
+  match-func is a function with signature (f x y) that returns true if the cell should be updated
+  update-func is a function with signature (f cell) that returns the updated cell"
   ([grid match-func update-func]
     (let [updater (fn [ex ey]
                     (let [ecell (get-cell grid ex ey)]
@@ -68,3 +68,31 @@
   (doseq [row (:cells grid)]
     (doseq [cell row]
       (func cell))))
+
+
+;==========================================================
+;
+
+(defn make-world
+  [width height]
+  (let [mountain-seed (common/get-property :mountain-seed-chance)
+        water-seed (common/get-property :water-seed-chance)
+        forest-seed (common/get-property :forest-seed-chance)
+        total-seed (+ mountain-seed water-seed forest-seed)]
+  (update-grid
+    (make-grid width height {:terrain :plains})
+    (fn [x y]
+      (< (rand-int 100) total-seed))
+    (fn [cell]
+      (let [r (rand-int total-seed)
+            new-terrain (cond (< r mountain-seed)
+                              :mountain
+                              (< r (+ mountain-seed forest-seed))
+                              :forest
+                              (<  r (+ mountain-seed forest-seed water-seed))
+                              :water
+                              :else
+                              :plains)]
+        (assoc cell :terrain new-terrain))))))
+
+

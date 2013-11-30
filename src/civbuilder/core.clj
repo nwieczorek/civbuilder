@@ -19,16 +19,17 @@
               ))
 
   (let [insets (.getInsets frame)
-        pnl (gui/civ-panel)
+        [pnl timer] (gui/civ-panel)
         [display-width display-height] (common/get-property :display-size)]
       (.setContentPane frame pnl)
       (.validate frame)
       (.repaint frame)
       (.setVisible frame true)
       (.setSize frame (+ (.left insets) (.right insets) display-width ) 
-                      (+ (.top insets) (.bottom insets) display-height  )))
+                      (+ (.top insets) (.bottom insets) display-height  ))
+      (.start timer)
 
-    )
+    ))
 
 (defn main
   []

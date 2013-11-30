@@ -1,0 +1,13 @@
+
+
+mini-card-left 0 0
+mini-card-center 1 0
+mini-card-right 2 0
+
+full-card-top-left 0 1
+full-card-top-center 1 1
+full-card-top-right 2 1
+
+full-card-bottom-left 0 2
+full-card-bottom-center 1 2
+full-card-bottom-right 2 2

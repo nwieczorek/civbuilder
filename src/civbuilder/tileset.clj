@@ -20,24 +20,25 @@
 
 
 (defn get-image-tiler
-  [full-image tile-def]
-  (let [[tile-width tile-height] (common/get-property :tile-size)]
+  [full-image tile-def [tile-width tile-height]]
     (fn [image-map kw]
       (let [[tile-x tile-y] (tile-def kw)
             subimg (get-subimage full-image tile-x tile-y tile-width tile-height kw )]
-        (assoc image-map kw subimg)))))
+        (assoc image-map kw subimg))))
 
 
 
 (defn load-tileset
-  [def-filename image-filename]
+  [def-filename image-filename tile-size]
+  (assert (not (nil? def-filename)) "Definition Filename undefined")
+  (assert (not (nil? image-filename)) "Image Filename undefined")
   (let [load-class (.getClass (Thread/currentThread))
         ts-def (common/load-property-file def-filename )
         tile-image-file image-filename
         _ (prn (str "loading " tile-image-file))
         full-image (ImageIO/read (.getResource load-class (str "/" tile-image-file)) )]
 
-    (reduce (get-image-tiler full-image ts-def) {} (keys ts-def))
+    (reduce (get-image-tiler full-image ts-def tile-size) {} (keys ts-def))
     ))
 
 
@@ -45,5 +46,5 @@
 (defn main
   []
   (common/load-common-properties)
-  (prn (load-tileset (common/get-property :tileset-def) (common/get-property :tileset-file) ))
+  (prn (load-tileset (common/get-property :tileset-def) (common/get-property :tileset-file) (common/get-property :tile-size) ))
   )

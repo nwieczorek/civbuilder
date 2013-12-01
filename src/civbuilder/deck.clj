@@ -20,7 +20,7 @@
   (make-card "Famine" "Pay 3 food"))
       
 (defn get-initial-deck
-  [num-cards]
+  []
   (concat 
     (repeat 5 farm)
     (repeat 2 storehouse)
@@ -36,5 +36,19 @@
           hand (concat deck to-hand)]
      [hand new-deck '()] )
     (conj (split-at num-cards (shuffle deck)) discards)))
+
+
+
+;=============================================================
+;
+
+(defn make-cards
+  [card-draw]
+  (let [initial (get-initial-deck)
+        [hand deck discards] (get-hand initial '() card-draw)]
+    {:hand hand
+     :discards discards
+     :deck deck}))
+
 
 

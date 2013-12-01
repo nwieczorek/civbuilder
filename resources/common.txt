@@ -4,16 +4,18 @@ tileset-file map_tiles.png
 card-tileset-def card_tileset.txt
 card-tileset-file card_tiles.png
 card-font Caudex-Regular.ttf
-card-font-size 32
-
+card-font-size 16
+mini-card-text-offset 3 5
 world-size 30 20
 
-map-offset 3 3
+map-offset 2 2
 tile-size 24 24
 card-tile-size 32 32
 
+card-draw 5
 
-hand-offset 5 500
+
+hand-offset 5 5
 
 display-size 800 600
 

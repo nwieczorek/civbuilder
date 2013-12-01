@@ -5,6 +5,7 @@
            (java.awt Color RenderingHints Toolkit Image Font))
   (:require [civbuilder.tileset :as tileset]
             [civbuilder.grid :as grid]
+            [civbuilder.deck :as deck]
             [civbuilder.common :as common]))
 
 ;========================================================================
@@ -14,10 +15,12 @@
 
 
 (defn load-font
-  [font-file size]
-  (let [load-class (.getClass (Thread/currentThread))
+  ([font-file style size]
+    (let [load-class (.getClass (Thread/currentThread))
         unsized (Font/createFont Font/TRUETYPE_FONT (.getResourceAsStream load-class (str "/" font-file)))]
-    (.deriveFont unsized (float size))))
+      (.deriveFont unsized style (float size))))
+  ([font-file size]
+   (load-font font-file Font/PLAIN size)))
 
 (defn get-text-height
   [^java.awt.Graphics2D g2d]
@@ -53,33 +56,120 @@
             y (+ text-height y1 )]
        (.drawString g2d text x y)))
 
+
 ;=========================================================================
 ; 
+;
+
+;(def hand-card-image-keys '( :mini-card-left :mini-card-center :mini-card-center :mini-card-right))
+(def hand-card-image-keys '( :mini-card-left :mini-card-center  :mini-card-right))
+(def hand-card-width (count hand-card-image-keys))
+
 (defn civ-panel
   []
   (let [[world-width world-height] (common/get-property :world-size)
         [tile-width tile-height] (common/get-property :tile-size)
         [tile-offset-x tile-offset-y] (common/get-property :map-offset)
         [card-tile-width card-tile-height] (common/get-property :card-tile-size)
-        [hand-offset-x hand-offset-y] (common/get-property :hand-offset)
-        world (grid/make-world world-width world-height)
+        [hand-offset-x hand-offset-without-map-y] (common/get-property :hand-offset)
+        hand-offset-y (+ hand-offset-without-map-y (* world-height tile-height) tile-offset-y)
         card-font (load-font (common/get-property :card-font) (common/get-property :card-font-size))
+        world (grid/make-world world-width world-height)
+
+        card-draw (common/get-property :card-draw)
+        cards (atom (deck/make-cards card-draw))
         hover-cell (atom nil)
+        hover-card (atom nil) ;leftmost cell of card display
         map-tileset (tileset/load-tileset (common/get-property :tileset-def) 
                                           (common/get-property :tileset-file) 
                                           (common/get-property :tile-size))
         card-tileset (tileset/load-tileset (common/get-property :card-tileset-def) 
                                            (common/get-property :card-tileset-file)
                                            (common/get-property :card-tile-size))
-        handle-click (fn [x y btn]
-                        (prn x y btn))
+        
+        hand-cells-available (quot (- (first (common/get-property :display-size)) hand-offset-x) card-tile-width) ]
 
-        handle-mouse-over (fn  [x y]
-                            (let [[cell-x cell-y] (translate-coord-to-cell x y tile-width tile-height tile-offset-x tile-offset-y)]
-                              (if (grid/valid? world cell-x cell-y)
-                                (reset! hover-cell [cell-x cell-y])
-                                (reset! hover-cell nil))))
-        proxy-panel  (doto 
+
+
+        (defn position-hand-cards
+          "Return a sequence with count equal to card count.
+          Each item in the seq will be the [min-cell max-cell] of the corresponding card"
+          [card-count cells-available]
+          (if (= 0 card-count)
+            '()
+            (let [cells-per-card (min (inc hand-card-width) (quot cells-available card-count))
+                  _ (assert (> cells-per-card 0) "Too many cards to display")]
+              (for [c (range card-count)]
+                (let [min-cell (* c cells-per-card)
+                      max-cell (+ min-cell (dec cells-per-card) )]
+                  [min-cell max-cell])))))
+
+
+
+
+        (defn draw-hand-card 
+          [g2d card min-cell max-cell watcher]
+          (let [pos-list (map #(vector (+ min-cell %1) %2) (range hand-card-width) hand-card-image-keys)]
+                (doseq [[pos img-key] pos-list]
+                  (let [[ix iy] (translate-cell-to-coord pos 0 
+                                                         card-tile-width card-tile-height 
+                                                         hand-offset-x hand-offset-y)]
+                    (.drawImage g2d (img-key card-tileset) ix iy watcher)
+                    ))
+                (let [[text-offset-x text-offset-y] (common/get-property :mini-card-text-offset)
+                      [ix iy] (translate-cell-to-coord min-cell 0 
+                                                         card-tile-width card-tile-height 
+                                                         hand-offset-x hand-offset-y)
+                      color (if (= @hover-card min-cell) Color/RED Color/BLACK) ]
+                (draw-text g2d (:name card) (+ ix text-offset-x) (+ iy text-offset-y) color card-font))
+            ))
+
+        (defn draw-hand-cards
+          [g2d hand-cards watcher]
+          (let [card-positions (position-hand-cards (count hand-cards) hand-cells-available)
+                cards-with-pos (map #(vector %1 %2) hand-cards card-positions)]
+              (doseq [[card pos] cards-with-pos]
+                (let [[min-cell max-cell] pos]
+                  (draw-hand-card g2d card min-cell max-cell watcher)))))
+
+
+
+        (defn translate-event
+          "returns [cell-x cell-y <:map or :hand>] or nil if no matching cell found" 
+          [x y cards-in-hand]
+          ;attempt to map to a square on the map
+          (let [[cell-x cell-y] (translate-coord-to-cell x y tile-width tile-height tile-offset-x tile-offset-y)]
+            (if (grid/valid? world cell-x cell-y)
+              [:map cell-x cell-y ]
+              ;attempt to map to a card
+              (let [[card-x card-y] (translate-coord-to-cell x y card-tile-width card-tile-height
+                                                             hand-offset-x hand-offset-y)
+                    card-positions (position-hand-cards cards-in-hand hand-cells-available)]
+                (when (= card-y 0)
+                  (let [hovered-card-pos (filter (fn [[min-cell max-cell]] 
+                                                    (and (>= card-x min-cell) (<= card-x max-cell)))
+                                                    card-positions)]
+                    (when (> (count hovered-card-pos) 0)
+                      (let [[min-cell max-cell] (first hovered-card-pos)]
+                        [:hand min-cell 0] )))))
+              )))
+
+        (defn handle-click 
+          [x y btn]
+          (prn x y btn))
+
+        (defn handle-mouse-over 
+          [x y cards-in-hand]
+          (reset! hover-cell nil)
+          (reset! hover-card nil)
+          (when-let [cell-event (translate-event x y cards-in-hand)]
+            (let [[event-type cell-x cell-y] cell-event]
+              (cond (= event-type :hand)
+                    (reset! hover-card cell-x)
+                    (= event-type :map)
+                    (reset! hover-cell [cell-x cell-y])))))
+
+        (let [proxy-panel  (doto 
                 (proxy [javax.swing.JPanel] []
                   (paintComponent [^java.awt.Graphics g]
                     (proxy-super paintComponent g)
@@ -98,11 +188,7 @@
                                 (when (and (= h-x (:x cell)) (= h-y (:y cell)))
                                   (.drawImage g2d (:hover map-tileset) ix iy this))))
                             )))
-
-                      (let [[ix iy] (translate-cell-to-coord 0 0 card-tile-width card-tile-height hand-offset-x hand-offset-y)]
-                        (.drawImage g2d (:mini-card-left card-tileset) ix iy this))
-
-                      (draw-text g2d "Hello There" 10 10 Color/BLACK card-font)
+                      (draw-hand-cards g2d (:hand @cards) this)
                       )))
                 (.addMouseListener (proxy [MouseListener] []
                                      (mouseClicked [e] )
@@ -117,17 +203,15 @@
                                      (mouseDragged [e])
                                      (mouseMoved [e] 
                                        (let [[x y btn] (mouse-event-data e)]
-                                         (handle-mouse-over x y)))
+                                         (handle-mouse-over x y (count (:hand @cards)))))
                                      ))) 
-        timer (Timer. (common/get-property :repaint-milliseconds) 
+              timer (Timer. (common/get-property :repaint-milliseconds) 
                            (proxy [ActionListener] []
                               (actionPerformed [event] 
                                (.repaint proxy-panel))))
         ]
 
-
-
-  [proxy-panel timer] ))
+      [proxy-panel timer] )))
 
 
 

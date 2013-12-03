@@ -27,7 +27,7 @@
     (let [cells (grid :cells)]
       ((cells y) x)))
 
-(defn update-grid
+(defn match-and-update-grid
   "Return an updated grid
   match-func is a function with signature (f x y) that returns true if the cell should be updated
   update-func is a function with signature (f cell) that returns the updated cell"
@@ -40,7 +40,19 @@
       (assoc grid :cells (make-grid-cells (:width grid) (:height grid) updater))))
   ([grid x y update-func]
     (let [match-func #(and (= x %1) (= y %2))]
-      (update-grid grid match-func update-func))))
+      (match-and-update-grid grid match-func update-func))))
+
+
+(defn update-grid
+  "Update cell or cells in the grid
+  update-func returns nil if no update is to be made to that cell, the update cell otherwise"
+  [grid update-func]
+  (let [updater (fn [ex ey]
+                  (let [ecell (get-cell grid ex ey)]
+                    (if-let [new-cell (update-func ex ey ecell)]
+                      new-cell
+                      ecell)))]
+    (assoc grid :cells (make-grid-cells (:width grid) (:height grid) updater))))
 
 (defn valid?
   [grid x y]
@@ -78,21 +90,54 @@
   (let [mountain-seed (common/get-property :mountain-seed-chance)
         water-seed (common/get-property :water-seed-chance)
         forest-seed (common/get-property :forest-seed-chance)
-        total-seed (+ mountain-seed water-seed forest-seed)]
-  (update-grid
-    (make-grid width height {:terrain :plains})
-    (fn [x y]
-      (< (rand-int 100) total-seed))
-    (fn [cell]
-      (let [r (rand-int total-seed)
-            new-terrain (cond (< r mountain-seed)
-                              :mountain
-                              (< r (+ mountain-seed forest-seed))
-                              :forest
-                              (<  r (+ mountain-seed forest-seed water-seed))
-                              :water
-                              :else
-                              :plains)]
-        (assoc cell :terrain new-terrain))))))
+        seed-map { :mountain mountain-seed
+                  :forest forest-seed
+                  :water water-seed }
+        mountain-growth (common/get-property :mountain-growth-chance)
+        water-growth (common/get-property :water-growth-chance)
+        forest-growth (common/get-property :forest-growth-chance)
+        growth-iterations (common/get-property :map-growth-iterations)
+        growth-map { :mountain mountain-growth
+                    :forest forest-growth
+                    :water water-growth}
+
+        total-seed (+ mountain-seed water-seed forest-seed)
+        seeded-grid (update-grid
+                        (make-grid width height {:terrain :plains})
+                        (fn [x y cell]
+                          (let [seeded-cells (keep identity 
+                                               (for [seed-key (keys seed-map)]
+                                                (let [r (rand-int 100)]
+                                                  (when (< r (seed-key seed-map))
+                                                    (assoc cell :terrain seed-key)))))]
+                            (when (not-empty seeded-cells)
+                              (first seeded-cells))))
+                      )]
+
+
+
+
+
+     (loop [counter 0
+            curr-grid seeded-grid]
+
+           (defn world-growth-update
+             [x y cell]
+             (when (= :plains (:terrain cell))
+               (let [adj (get-adjacent-cells curr-grid x y)
+                     grown-cells (keep identity
+                                       (for [gr-key (keys growth-map)]
+                                         (when (not-empty (filter #(= gr-key (:terrain %)) adj))
+                                           (let [r (rand-int 100)]
+                                             (when (< r (gr-key growth-map))
+                                               (assoc cell :terrain gr-key))))))]
+                (when (not-empty grown-cells) (first grown-cells)))))
+
+       (if (< counter growth-iterations)
+         (recur (inc counter) 
+                 (update-grid curr-grid world-growth-update))
+         curr-grid))))
+           
+       
 
 

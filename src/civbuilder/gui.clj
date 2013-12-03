@@ -64,6 +64,10 @@
 ;(def hand-card-image-keys '( :mini-card-left :mini-card-center :mini-card-center :mini-card-right))
 (def hand-card-image-keys '( :mini-card-left :mini-card-center  :mini-card-right))
 (def hand-card-width (count hand-card-image-keys))
+;these should have the same count as the hand-card-image-keys
+(def hand-card-full-top-image-keys '( :full-card-top-left :full-card-top-center :full-card-top-right))
+(def hand-card-full-middle-image-keys '( :full-card-middle-left :full-card-middle-center :full-card-middle-right))
+(def hand-card-full-bottom-image-keys '( :full-card-bottom-left :full-card-bottom-center :full-card-bottom-right))
 
 (defn civ-panel
   []
@@ -73,7 +77,9 @@
         [card-tile-width card-tile-height] (common/get-property :card-tile-size)
         [hand-offset-x hand-offset-without-map-y] (common/get-property :hand-offset)
         hand-offset-y (+ hand-offset-without-map-y (* world-height tile-height) tile-offset-y)
+        [card-text-offset-x card-text-offset-y] (common/get-property :mini-card-text-offset)
         card-font (load-font (common/get-property :card-font) (common/get-property :card-font-size))
+        card-bold-font (load-font (common/get-property :card-font) Font/BOLD (common/get-property :card-font-size))
         world (grid/make-world world-width world-height)
 
         card-draw (common/get-property :card-draw)
@@ -97,31 +103,47 @@
           [card-count cells-available]
           (if (= 0 card-count)
             '()
-            (let [cells-per-card (min (inc hand-card-width) (quot cells-available card-count))
+            (let [cells-per-card (min hand-card-width (quot cells-available card-count))
+                  spacing (if (> (quot cells-available card-count) hand-card-width) 1 0)
                   _ (assert (> cells-per-card 0) "Too many cards to display")]
               (for [c (range card-count)]
-                (let [min-cell (* c cells-per-card)
-                      max-cell (+ min-cell (dec cells-per-card) )]
+                (let [min-cell (+ (* spacing c) (* c cells-per-card))
+                      max-cell (+ min-cell (dec cells-per-card)  )]
                   [min-cell max-cell])))))
 
 
 
 
+        (defn draw-card-section
+          [g2d min-cell cell-y-offset image-keys watcher]
+          (let [pos-list (map #(vector (+ min-cell %1) %2) (range (count image-keys)) image-keys)]
+            (doseq [[pos img-key] pos-list]
+              (let [[ix iy] (translate-cell-to-coord pos cell-y-offset 
+                                                     card-tile-width card-tile-height 
+                                                     hand-offset-x hand-offset-y)]
+                (.drawImage g2d (img-key card-tileset) ix iy watcher)
+                ))))
+
+        (defn draw-card-text
+          [g2d card min-cell cell-y-offset]
+          (let [[ix iy] (translate-cell-to-coord min-cell cell-y-offset
+                                                 card-tile-width card-tile-height 
+                                                 hand-offset-x hand-offset-y)]
+            (draw-text g2d (:name card) (+ ix card-text-offset-x) (+ iy card-text-offset-y) Color/BLACK card-font)))
+
         (defn draw-hand-card 
           [g2d card min-cell max-cell watcher]
-          (let [pos-list (map #(vector (+ min-cell %1) %2) (range hand-card-width) hand-card-image-keys)]
-                (doseq [[pos img-key] pos-list]
-                  (let [[ix iy] (translate-cell-to-coord pos 0 
-                                                         card-tile-width card-tile-height 
-                                                         hand-offset-x hand-offset-y)]
-                    (.drawImage g2d (img-key card-tileset) ix iy watcher)
-                    ))
-                (let [[text-offset-x text-offset-y] (common/get-property :mini-card-text-offset)
-                      [ix iy] (translate-cell-to-coord min-cell 0 
-                                                         card-tile-width card-tile-height 
-                                                         hand-offset-x hand-offset-y)
-                      color (if (= @hover-card min-cell) Color/RED Color/BLACK) ]
-                (draw-text g2d (:name card) (+ ix text-offset-x) (+ iy text-offset-y) color card-font))
+          (if (= @hover-card min-cell)
+            ;-- Show full card
+            (do
+              (draw-card-section g2d min-cell -2 hand-card-full-top-image-keys watcher)
+              (draw-card-section g2d min-cell -1 hand-card-full-middle-image-keys watcher)
+              (draw-card-section g2d min-cell 0 hand-card-full-bottom-image-keys watcher)
+              (draw-card-text g2d card min-cell -2))
+            ;--- Show mini card
+            (do
+              (draw-card-section g2d min-cell 0 hand-card-image-keys watcher)
+              (draw-card-text g2d card min-cell 0))
             ))
 
         (defn draw-hand-cards

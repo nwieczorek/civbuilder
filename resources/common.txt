@@ -25,5 +25,9 @@ forest-seed-chance 5
 mountain-seed-chance 2
 water-seed-chance 5
 
+forest-growth-chance 10
+mountain-growth-chance 5
+water-growth-chance 10
+map-growth-iterations 10
 
 repaint-milliseconds 500

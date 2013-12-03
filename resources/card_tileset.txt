@@ -8,6 +8,10 @@ full-card-top-left 0 1
 full-card-top-center 1 1
 full-card-top-right 2 1
 
-full-card-bottom-left 0 2
-full-card-bottom-center 1 2
-full-card-bottom-right 2 2
+full-card-middle-left 0 2
+full-card-middle-center 1 2
+full-card-middle-right 2 2
+
+full-card-bottom-left 0 3
+full-card-bottom-center 1 3
+full-card-bottom-right 2 3

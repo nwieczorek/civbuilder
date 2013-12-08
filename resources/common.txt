@@ -5,6 +5,9 @@ card-tileset-def card_tileset.txt
 card-tileset-file card_tiles.png
 card-font Caudex-Regular.ttf
 card-font-size 16
+message-font Caudex-Regular.ttf
+message-font-size 12
+
 mini-card-text-offset 3 5
 world-size 30 20
 
@@ -16,10 +19,10 @@ card-draw 5
 
 
 hand-offset 5 5
+message-offset 5 15
 
 display-size 800 600
 
-apples 1 2 3
 
 forest-seed-chance 5
 mountain-seed-chance 2
@@ -30,4 +33,4 @@ mountain-growth-chance 5
 water-growth-chance 10
 map-growth-iterations 10
 
-repaint-milliseconds 500
+repaint-milliseconds 300

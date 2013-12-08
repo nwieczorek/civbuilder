@@ -4,6 +4,7 @@
            (java.awt.event ActionListener MouseListener MouseMotionListener MouseEvent KeyListener)
            (java.awt Color RenderingHints Toolkit Image Font))
   (:require [civbuilder.tileset :as tileset]
+            [civbuilder.state :as state]
             [civbuilder.grid :as grid]
             [civbuilder.deck :as deck]
             [civbuilder.common :as common]))
@@ -80,12 +81,18 @@
         [card-text-offset-x card-text-offset-y] (common/get-property :mini-card-text-offset)
         card-font (load-font (common/get-property :card-font) (common/get-property :card-font-size))
         card-bold-font (load-font (common/get-property :card-font) Font/BOLD (common/get-property :card-font-size))
-        world (grid/make-world world-width world-height)
+        message-font (load-font (common/get-property :message-font) (common/get-property :message-font-size))
+        [message-offset-x message-offset-y-raw] (common/get-property :message-offset)
+        message-offset-y (+ message-offset-y-raw hand-offset-y card-tile-height)
+        world (atom (grid/make-world world-width world-height))
 
         card-draw (common/get-property :card-draw)
         cards (atom (deck/make-cards card-draw))
         hover-cell (atom nil)
         hover-card (atom nil) ;leftmost cell of card display
+        current-state (atom (state/initial-state))
+        message-text (atom "Hi There")
+        active-cells (atom nil)
         map-tileset (tileset/load-tileset (common/get-property :tileset-def) 
                                           (common/get-property :tileset-file) 
                                           (common/get-property :tile-size))
@@ -95,6 +102,9 @@
         
         hand-cells-available (quot (- (first (common/get-property :display-size)) hand-offset-x) card-tile-width) ]
 
+        (defn update
+          []
+          (reset! message-text (@current-state :text)))
 
 
         (defn position-hand-cards
@@ -156,12 +166,18 @@
 
 
 
+        (defn draw-message
+          [g2d watcher]
+          (when-let [msg @message-text]
+            (draw-text g2d msg message-offset-x message-offset-y Color/BLACK message-font)))
+
+
         (defn translate-event
           "returns [cell-x cell-y <:map or :hand>] or nil if no matching cell found" 
           [x y cards-in-hand]
           ;attempt to map to a square on the map
           (let [[cell-x cell-y] (translate-coord-to-cell x y tile-width tile-height tile-offset-x tile-offset-y)]
-            (if (grid/valid? world cell-x cell-y)
+            (if (grid/valid? @world cell-x cell-y)
               [:map cell-x cell-y ]
               ;attempt to map to a card
               (let [[card-x card-y] (translate-coord-to-cell x y card-tile-width card-tile-height
@@ -176,9 +192,25 @@
                         [:hand min-cell 0] )))))
               )))
 
+
+
+
         (defn handle-click 
-          [x y btn]
-          (prn x y btn))
+          [x y btn cards-in-hand]
+          (when-let [cell-event (translate-event x y cards-in-hand)]
+            (let [[event-type cell-x cell-y] cell-event]
+              (cond (= event-type :map)
+                    (do
+                      (prn (str "Clicked on cell " cell-x "," cell-y))
+                      (case (@current-state :name)
+                        :place-first-village 
+                          (do 
+                            (prn "placing village")
+                            (swap! current-state #(% :next) )
+                            (swap! world (grid/add-village cell-x cell-y))
+                            )
+                        )
+                      )))))
 
         (defn handle-mouse-over 
           [x y cards-in-hand]
@@ -199,18 +231,26 @@
                                   (.create g))]
                       (.setRenderingHint g2d RenderingHints/KEY_TEXT_ANTIALIASING 
                                          RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
+                      (update)
                       (grid/for-each-cell 
-                        world
+                        @world
                         (fn [cell]
                           (let [[ix iy] (translate-cell-to-coord (:x cell) (:y cell) tile-width tile-height tile-offset-x tile-offset-y)
                                 image ((:terrain cell) map-tileset)]
                             (.drawImage g2d image ix iy this)
+                            (when-let [village (:village cell)]
+                              (.drawImage g2d (:village map-tileset) ix iy this))
+                            (when (and (= :place-first-village (@current-state :name))
+                                       (= (:terrain cell) :plains))
+                              (.drawImage g2d (:select map-tileset) ix iy this)) 
+                               
                             (when (not (nil? @hover-cell))
                               (let [[h-x h-y] @hover-cell]
                                 (when (and (= h-x (:x cell)) (= h-y (:y cell)))
                                   (.drawImage g2d (:hover map-tileset) ix iy this))))
                             )))
                       (draw-hand-cards g2d (:hand @cards) this)
+                      (draw-message g2d this)
                       )))
                 (.addMouseListener (proxy [MouseListener] []
                                      (mouseClicked [e] )
@@ -219,7 +259,7 @@
                                      (mousePressed [e] )
                                      (mouseReleased [e] 
                                        (let [[x y btn] (mouse-event-data e)]
-                                                  (handle-click x y btn)))
+                                                  (handle-click x y btn (count (:hand @cards)))))
                                      ))
                 (.addMouseMotionListener (proxy [MouseMotionListener] []
                                      (mouseDragged [e])

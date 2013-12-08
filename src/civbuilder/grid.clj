@@ -82,6 +82,12 @@
       (func cell))))
 
 
+(defn filter-cells
+  "return a sequence of cells where the predicate is true"
+  [grid func]
+  (filter func (flatten (:cells grid))))
+
+
 ;==========================================================
 ;
 
@@ -103,7 +109,7 @@
 
         total-seed (+ mountain-seed water-seed forest-seed)
         seeded-grid (update-grid
-                        (make-grid width height {:terrain :plains})
+                        (make-grid width height {:terrain :plains :village nil})
                         (fn [x y cell]
                           (let [seeded-cells (keep identity 
                                                (for [seed-key (keys seed-map)]
@@ -139,5 +145,12 @@
          curr-grid))))
            
        
+(defn add-village
+  "Returns a function that takes the grid as an argument"
+  [x y]
+  (fn [grid]
+    (update-grid grid (fn [ix iy cell]
+                        (when (and (= x ix) (= y iy))
+                          (assoc cell :village :new-village))))))
 
 

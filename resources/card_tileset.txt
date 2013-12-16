@@ -15,3 +15,8 @@ full-card-middle-right 2 2
 full-card-bottom-left 0 3
 full-card-bottom-center 1 3
 full-card-bottom-right 2 3
+
+
+sign-left 3 0
+sign-center 4 0 
+sign-right 5 0

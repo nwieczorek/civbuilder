@@ -7,6 +7,7 @@
             [civbuilder.state :as state]
             [civbuilder.grid :as grid]
             [civbuilder.deck :as deck]
+            [civbuilder.player :as player]
             [civbuilder.common :as common]))
 
 ;========================================================================
@@ -69,7 +70,7 @@
 (def hand-card-full-top-image-keys '( :full-card-top-left :full-card-top-center :full-card-top-right))
 (def hand-card-full-middle-image-keys '( :full-card-middle-left :full-card-middle-center :full-card-middle-right))
 (def hand-card-full-bottom-image-keys '( :full-card-bottom-left :full-card-bottom-center :full-card-bottom-right))
-
+(def sign-image-keys '( :sign-left :sign-center :sign-right))
 (defn civ-panel
   []
   (let [[world-width world-height] (common/get-property :world-size)
@@ -78,8 +79,12 @@
         [card-tile-width card-tile-height] (common/get-property :card-tile-size)
         [hand-offset-x hand-offset-without-map-y] (common/get-property :hand-offset)
         hand-offset-y (+ hand-offset-without-map-y (* world-height tile-height) tile-offset-y)
+        [sign-offset-without-map-x sign-offset-y] (common/get-property :sign-offset)
+        sign-offset-x (+ sign-offset-without-map-x (* world-width tile-width) tile-offset-x)
+        [sign-text-offset-x sign-text-offset-y] (common/get-property :sign-text-offset)
         [card-text-offset-x card-text-offset-y] (common/get-property :mini-card-text-offset)
         card-font (load-font (common/get-property :card-font) (common/get-property :card-font-size))
+        sign-font (load-font (common/get-property :sign-font) (common/get-property :sign-font-size))
         card-bold-font (load-font (common/get-property :card-font) Font/BOLD (common/get-property :card-font-size))
         message-font (load-font (common/get-property :message-font) (common/get-property :message-font-size))
         [message-offset-x message-offset-y-raw] (common/get-property :message-offset)
@@ -93,6 +98,7 @@
         current-state (atom (state/initial-state))
         message-text (atom "Hi There")
         active-cells (atom nil)
+        player-stuff (atom (player/make-player))
         map-tileset (tileset/load-tileset (common/get-property :tileset-def) 
                                           (common/get-property :tileset-file) 
                                           (common/get-property :tile-size))
@@ -165,41 +171,88 @@
                   (draw-hand-card g2d card min-cell max-cell watcher)))))
 
 
-
+        (defn get-card-for-cell
+          [min-cell hand-cards]
+          (let [card-positions (position-hand-cards (count hand-cards) hand-cells-available)
+                cards-with-pos (map #(vector %1 %2) hand-cards card-positions)
+                card-for-cell (filter (fn [[card [i-min i-max]]] (= min-cell i-min)) cards-with-pos)]
+            (when (not-empty card-for-cell)
+              (let [[card pos] (first card-for-cell)]
+                card))))
+            
         (defn draw-message
           [g2d watcher]
           (when-let [msg @message-text]
             (draw-text g2d msg message-offset-x message-offset-y Color/BLACK message-font)))
 
+        (defn draw-sign
+          [g2d cell-y-offset text image-keys watcher]
+          (let [pos-list (map #(vector %1 %2) (range (count image-keys)) image-keys)]
+            (doseq [[pos img-key] pos-list]
+              (let [[ix iy] (translate-cell-to-coord pos cell-y-offset
+                                                     card-tile-width card-tile-height
+                                                     sign-offset-x sign-offset-y)]
+                (.drawImage g2d (img-key card-tileset) ix iy watcher)
+              ))
+            (let [[ix iy] (translate-cell-to-coord 0 cell-y-offset
+                                                   card-tile-width card-tile-height
+                                                   sign-offset-x sign-offset-y)]
+              (draw-text g2d text (+ ix sign-text-offset-x) (+ iy sign-text-offset-y) Color/BLACK sign-font))
+            ))
 
-        (defn translate-event
-          "returns [cell-x cell-y <:map or :hand>] or nil if no matching cell found" 
-          [x y cards-in-hand]
+
+        (defn draw-signs
+          [g2d watcher]
+          (doseq [[idx res-key] (map-indexed #(vector %1 %2) player/resource-keys)]
+            (let [sign-text  (format "%-7s %4d" (player/resource-name res-key) (res-key @player-stuff)) ]
+              (draw-sign g2d idx sign-text sign-image-keys watcher)
+          )))
+
+
+
+
+        (defn translate-event-to-world
+          [x y ]
           ;attempt to map to a square on the map
           (let [[cell-x cell-y] (translate-coord-to-cell x y tile-width tile-height tile-offset-x tile-offset-y)]
-            (if (grid/valid? @world cell-x cell-y)
-              [:map cell-x cell-y ]
-              ;attempt to map to a card
-              (let [[card-x card-y] (translate-coord-to-cell x y card-tile-width card-tile-height
-                                                             hand-offset-x hand-offset-y)
-                    card-positions (position-hand-cards cards-in-hand hand-cells-available)]
-                (when (= card-y 0)
-                  (let [hovered-card-pos (filter (fn [[min-cell max-cell]] 
-                                                    (and (>= card-x min-cell) (<= card-x max-cell)))
-                                                    card-positions)]
-                    (when (> (count hovered-card-pos) 0)
-                      (let [[min-cell max-cell] (first hovered-card-pos)]
-                        [:hand min-cell 0] )))))
-              )))
+            (when (grid/valid? @world cell-x cell-y)
+              [:world cell-x cell-y ])))
+
+        (defn translate-event-to-hand-card
+          [x y cards-in-hand]
+          (let [[card-x card-y] (translate-coord-to-cell x y card-tile-width card-tile-height
+                                                         hand-offset-x hand-offset-y)
+                card-positions (position-hand-cards cards-in-hand hand-cells-available)]
+            (when (= card-y 0)
+              (let [hovered-card-pos (filter (fn [[min-cell max-cell]] 
+                                                (and (>= card-x min-cell) (<= card-x max-cell)))
+                                                card-positions)]
+                (when (> (count hovered-card-pos) 0)
+                  (let [[min-cell max-cell] (first hovered-card-pos)]
+                    [:hand min-cell 0] ))))))
 
 
+        (defn translate-event-to-sign
+          [x y]
+          (let [[cell-x cell-y] (translate-coord-to-cell x y card-tile-width card-tile-height
+                                                         sign-offset-x sign-offset-y)]
+            [:sign cell-x cell-y]))
+
+        (defn translate-event
+          "returns [cell-x cell-y <:world or :hand>] or nil if no matching cell found" 
+          [x y cards-in-hand]
+
+          (or (translate-event-to-world x y)
+              (translate-event-to-hand-card x y cards-in-hand)
+              (translate-event-to-sign x y)
+              ))
 
 
         (defn handle-click 
           [x y btn cards-in-hand]
           (when-let [cell-event (translate-event x y cards-in-hand)]
             (let [[event-type cell-x cell-y] cell-event]
-              (cond (= event-type :map)
+              (cond (= event-type :world)
                     (do
                       (prn (str "Clicked on cell " cell-x "," cell-y))
                       (case (@current-state :name)
@@ -209,8 +262,18 @@
                             (swap! current-state #(% :next) )
                             (swap! world (grid/add-village cell-x cell-y))
                             )
-                        )
-                      )))))
+                        :start-play
+                          (do
+                            (prn "start play")
+                            )
+                        ))
+                    (= event-type :hand)
+                    (do
+                      (let [card (get-card-for-cell cell-x (:hand @cards))]
+                        (prn (str "Clicked on card") card)))
+                    (= event-type :sign)
+                    (prn "clicked sign" cell-y)
+                    ))))
 
         (defn handle-mouse-over 
           [x y cards-in-hand]
@@ -251,6 +314,7 @@
                             )))
                       (draw-hand-cards g2d (:hand @cards) this)
                       (draw-message g2d this)
+                      (draw-signs g2d this)
                       )))
                 (.addMouseListener (proxy [MouseListener] []
                                      (mouseClicked [e] )

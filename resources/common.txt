@@ -7,8 +7,11 @@ card-font Caudex-Regular.ttf
 card-font-size 16
 message-font Caudex-Regular.ttf
 message-font-size 12
+sign-font Caudex-Regular.ttf
+sign-font-size 16
 
 mini-card-text-offset 3 5
+sign-text-offset 3 5
 world-size 30 20
 
 map-offset 2 2
@@ -20,8 +23,9 @@ card-draw 5
 
 hand-offset 5 5
 message-offset 5 15
+sign-offset 2 2
 
-display-size 800 600
+display-size 870 600
 
 
 forest-seed-chance 5
@@ -34,3 +38,8 @@ water-growth-chance 10
 map-growth-iterations 10
 
 repaint-milliseconds 300
+
+initial-wood 1
+initial-stone 1
+initial-water 0
+initial-food 1

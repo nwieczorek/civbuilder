@@ -20,3 +20,6 @@ full-card-bottom-right 2 3
 sign-left 3 0
 sign-center 4 0 
 sign-right 5 0
+sign-hover-left 3 1
+sign-hover-center 4 1 
+sign-hover-right 5 1

@@ -71,6 +71,7 @@
 (def hand-card-full-middle-image-keys '( :full-card-middle-left :full-card-middle-center :full-card-middle-right))
 (def hand-card-full-bottom-image-keys '( :full-card-bottom-left :full-card-bottom-center :full-card-bottom-right))
 (def sign-image-keys '( :sign-left :sign-center :sign-right))
+(def sign-hover-image-keys '( :sign-hover-left :sign-hover-center :sign-hover-right))
 (defn civ-panel
   []
   (let [[world-width world-height] (common/get-property :world-size)
@@ -84,8 +85,9 @@
         [sign-text-offset-x sign-text-offset-y] (common/get-property :sign-text-offset)
         [card-text-offset-x card-text-offset-y] (common/get-property :mini-card-text-offset)
         card-font (load-font (common/get-property :card-font) (common/get-property :card-font-size))
-        sign-font (load-font (common/get-property :sign-font) (common/get-property :sign-font-size))
         card-bold-font (load-font (common/get-property :card-font) Font/BOLD (common/get-property :card-font-size))
+        sign-font (load-font (common/get-property :sign-font) (common/get-property :sign-font-size))
+        sign-bold-font (load-font (common/get-property :sign-font) Font/BOLD (common/get-property :sign-font-size))
         message-font (load-font (common/get-property :message-font) (common/get-property :message-font-size))
         [message-offset-x message-offset-y-raw] (common/get-property :message-offset)
         message-offset-y (+ message-offset-y-raw hand-offset-y card-tile-height)
@@ -95,10 +97,20 @@
         cards (atom (deck/make-cards card-draw))
         hover-cell (atom nil)
         hover-card (atom nil) ;leftmost cell of card display
+        hover-sign (atom nil)
         current-state (atom (state/initial-state))
         message-text (atom "Hi There")
         active-cells (atom nil)
         player-stuff (atom (player/make-player))
+        
+        signs (concat player/resource-keys
+                      '(nil nil)
+                      deck/available-cards
+                      '(nil nil)
+                      '("End Turn")
+                      )
+        
+        sign-spacer 2
         map-tileset (tileset/load-tileset (common/get-property :tileset-def) 
                                           (common/get-property :tileset-file) 
                                           (common/get-property :tile-size))
@@ -186,8 +198,9 @@
             (draw-text g2d msg message-offset-x message-offset-y Color/BLACK message-font)))
 
         (defn draw-sign
-          [g2d cell-y-offset text image-keys watcher]
-          (let [pos-list (map #(vector %1 %2) (range (count image-keys)) image-keys)]
+          [g2d cell-y-offset text watcher]
+          (let [image-keys (if (= cell-y-offset @hover-sign) sign-hover-image-keys sign-image-keys)
+                pos-list (map #(vector %1 %2) (range (count image-keys)) image-keys)]
             (doseq [[pos img-key] pos-list]
               (let [[ix iy] (translate-cell-to-coord pos cell-y-offset
                                                      card-tile-width card-tile-height
@@ -203,10 +216,16 @@
 
         (defn draw-signs
           [g2d watcher]
-          (doseq [[idx res-key] (map-indexed #(vector %1 %2) player/resource-keys)]
-            (let [sign-text  (format "%-7s %4d" (player/resource-name res-key) (res-key @player-stuff)) ]
-              (draw-sign g2d idx sign-text sign-image-keys watcher)
-          )))
+          (doseq [[idx sign-item] (map-indexed #(vector %1 %2) signs)]
+            (when sign-item
+              (cond (some #(= % sign-item) player/resource-keys)
+                    (let [sign-text  (format "%-7s %4d" (player/resource-name sign-item) (sign-item @player-stuff)) ]
+                      (draw-sign g2d idx sign-text watcher))
+                    (some #(= % sign-item) deck/available-cards)      
+                    (draw-sign g2d idx (:name sign-item) watcher)
+                    :else
+                    (draw-sign g2d idx sign-item watcher)
+              ))))
 
 
 
@@ -272,19 +291,25 @@
                       (let [card (get-card-for-cell cell-x (:hand @cards))]
                         (prn (str "Clicked on card") card)))
                     (= event-type :sign)
-                    (prn "clicked sign" cell-y)
+                    (do
+                      (when (<= cell-y (count signs))
+                        (prn (nth signs cell-y))))
                     ))))
 
         (defn handle-mouse-over 
           [x y cards-in-hand]
           (reset! hover-cell nil)
           (reset! hover-card nil)
+          (reset! hover-sign nil)
           (when-let [cell-event (translate-event x y cards-in-hand)]
             (let [[event-type cell-x cell-y] cell-event]
               (cond (= event-type :hand)
                     (reset! hover-card cell-x)
-                    (= event-type :map)
-                    (reset! hover-cell [cell-x cell-y])))))
+                    (= event-type :world)
+                    (reset! hover-cell [cell-x cell-y])
+                    (= event-type :sign)
+                    (reset! hover-sign cell-y)
+                    ))))
 
         (let [proxy-panel  (doto 
                 (proxy [javax.swing.JPanel] []

@@ -18,7 +18,12 @@
   (make-card "Storehouse" "Store 1 or 2 resources"))
 (def ^:const famine
   (make-card "Famine" "Pay 3 food"))
-      
+    
+
+(def available-cards
+  (list emigrate farm well storehouse famine))
+
+
 (defn get-initial-deck
   []
   (concat 
@@ -49,6 +54,12 @@
     {:hand hand
      :discards discards
      :deck deck}))
+
+
+(defn count-card
+  [cards card-to-count]
+  (let [all (concat (:hand cards) (:discards cards) (:deck cards))]
+    (reduce #(if (= %2 card-to-count) (inc %1)  %1) 0 all)))
 
 
 
